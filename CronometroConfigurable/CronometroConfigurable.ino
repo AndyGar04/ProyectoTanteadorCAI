@@ -1,66 +1,56 @@
-const byte ledPin = 6;          // Which pin on the Arduino is connected to the NeoPixels?
-const byte numDigits = 2;       // How many digits (numbers) are available on each display
-const byte pixelPerDigit = 63;  // all pixels, including decimal point pixels if available at each digit
-const byte addPixels = 0;       // unregular additional pixels to be added to the strip
-const byte startPixelMM = 0;    // start pixel of display A
-const byte startPixelSS = 126;  // start pixel of display B (assumption: 2 x 14 used by displayMM + 4 additional Pixels)
-const byte identificacion[6] = "00001";
+// Programa para controlar un cronómetro utilizando displays NeoPixel.
+// Este cronómetro incluye opciones para iniciar, pausar, sumar, restar y reiniciar el tiempo.
 
-const int varv = 0;
+#include <Adafruit_NeoPixel.h> // Librería para manejar los LEDs NeoPixel
+#include <Noiasca_NeopixelDisplay.h> // Librería para manejar displays NeoPixel
 
-int Minutos = 00;
-int Segundos = 00;
-int bandera = 0;
-int confi = 0;
+// Configuración de pines y parámetros
+const byte ledPin = 6;          // Pin conectado al NeoPixel
+const byte numDigits = 2;       // Número de dígitos en cada display
+const byte pixelPerDigit = 63;  // Número de píxeles por dígito
+const byte addPixels = 0;       // Píxeles adicionales
+const byte startPixelMM = 0;    // Inicio del display de minutos
+const byte startPixelSS = 126;  // Inicio del display de segundos
 
-int boton_pausar = 7;
-int boton_iniciar = 8;
-int boton_sumar = 9;
-int boton_restar = 10;
-int boton_reset = 11;
+int Minutos = 0;
+int Segundos = 0;
+int bandera = 0; // Indica si el cronómetro está en pausa o en marcha
+int confi = 0;   // Bandera de configuración para ajustes de tiempo
 
-const uint64_t ledCount(pixelPerDigit* numDigits * 2 + addPixels);
-/*
-   Segments are named and orded like this
+// Pines de los botones
+const int boton_pausar = 7;
+const int boton_iniciar = 8;
+const int boton_sumar = 9;
+const int boton_restar = 10;
+const int boton_reset = 11;
 
-          SEG_A
-   SEG_F         SEG_B
-          SEG_G
-   SEG_E         SEG_C
-          SEG_D          SEG_DP
+const uint64_t ledCount(pixelPerDigit * numDigits * 2 + addPixels);
 
-  in the following constant array you have to define
-  which pixels belong to which segment
-*/
-
-typedef uint64_t segsize_t;  // fit variable size to your needed pixels. uint16_t --> max 16 Pixel per digit
-const segsize_t segment[7]{
-  0b000000000000000000000000000000000000000000000000000000111111111,  // SEG_A
-  0b000000000000000000000000000000000000000000000111111111000000000,  // SEG_B
-  0b000000000000000000000000000000000000111111111000000000000000000,  // SEG_C
-  0b000000000000000000000000000111111111000000000000000000000000000,  // SEG_D
-  0b000000000000000000111111111000000000000000000000000000000000000,  // SEG_E
-  0b000000000111111111000000000000000000000000000000000000000000000,  // SEG_F
-  0b111111111000000000000000000000000000000000000000000000000000000,  // SEG_G
+// Segmentos de los displays definidos como bits
+const uint64_t segment[7] = {
+  0b000000000000000000000000000000000000000000000000000000111111111,  // Segmento A
+  0b000000000000000000000000000000000000000000000111111111000000000,  // Segmento B
+  0b000000000000000000000000000000000000111111111000000000000000000,  // Segmento C
+  0b000000000000000000000000000111111111000000000000000000000000000,  // Segmento D
+  0b000000000000000000111111111000000000000000000000000000000000000,  // Segmento E
+  0b000000000111111111000000000000000000000000000000000000000000000,  // Segmento F
+  0b111111111000000000000000000000000000000000000000000000000000000   // Segmento G
 };
 
-#include <Adafruit_NeoPixel.h>                                    // install Adafruit library from library manager
-Adafruit_NeoPixel strip(ledCount, ledPin, NEO_GRB + NEO_KHZ800);  // create neopixel object like you commonly used with Adafruit
-
-#include <Noiasca_NeopixelDisplay.h>                                                   // download library from: http://werner.rothschopf.net/202005_arduino_neopixel_display.htm
-Noiasca_NeopixelDisplay display(strip, segment, numDigits, pixelPerDigit, addPixels);  // create display object, handover the name of your strip as first parameter!
-
+// Inicialización de objetos NeoPixel y displays
+Adafruit_NeoPixel strip(ledCount, ledPin, NEO_GRB + NEO_KHZ800);
+Noiasca_NeopixelDisplay display(strip, segment, numDigits, pixelPerDigit, addPixels);
 Noiasca_NeopixelDisplay displayMM(strip, segment, numDigits, pixelPerDigit, startPixelMM);
 Noiasca_NeopixelDisplay displaySS(strip, segment, numDigits, pixelPerDigit, startPixelSS);
 
 void setup() {
   Serial.begin(115200);
 
-  strip.begin();            // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();             // Turn OFF all pixels ASAP
-  strip.setBrightness(50);  // Set BRIGHTNESS to about 1/5 (max = 255)
+  strip.begin();            // Inicializa el objeto NeoPixel
+  strip.show();             // Apaga todos los LEDs
+  strip.setBrightness(50);  // Establece el brillo
   strip.clear();
-  
+
   pinMode(boton_pausar, INPUT);
   pinMode(boton_iniciar, INPUT);
   pinMode(boton_sumar, INPUT);
@@ -69,99 +59,119 @@ void setup() {
 }
 
 void loop() {
- 
-  Sub12_1(); 
-  Sub12_2(); 
-  Primera_1(); 
-  
-  if (Minutos < 10) {
-    displayMM.print(varv);
-    displayMM.print(Minutos);
-  } else {
-    displayMM.print(Minutos);
-  }
- 
-  if (Segundos < 10) {
-    displaySS.print(varv);
-    displaySS.print(Segundos);
-  } else {
-    displaySS.print(Segundos);
-  }
+  gestionarTiempoEspecial();
+
+  mostrarTiempo();
 
   if (bandera == 1) {
     if (digitalRead(boton_pausar) == HIGH) {
-      bandera = 0;
-      displayMM.setColorFont(0xAA0000);
-      displaySS.setColorFont(0xAA0000);
+      pausarCronometro();
     }
     Contador();
     delay(950);
-    
-    displayMM.clear();
-    displaySS.clear();
-  }
-  if (bandera == 0) {
+  } else {
     if (digitalRead(boton_iniciar) == HIGH) {
-      bandera = 1;
-      displayMM.setColorFont(0x00FFFF); // Establecer color en celeste
-      displaySS.setColorFont(0x00FFFF); // Establecer color en celeste
+      iniciarCronometro();
     }
     delay(950);
   }
 
+  ajustarMinutos();
+  reiniciarCronometro();
+}
 
+// Muestra el tiempo en los displays
+void mostrarTiempo() {
+  if (Minutos < 10) {
+    displayMM.print(0);
+    displayMM.print(Minutos);
+  } else {
+    displayMM.print(Minutos);
+  }
+
+  if (Segundos < 10) {
+    displaySS.print(0);
+    displaySS.print(Segundos);
+  } else {
+    displaySS.print(Segundos);
+  }
+}
+
+// Incrementa o decrementa los minutos según los botones
+void ajustarMinutos() {
   if (digitalRead(boton_sumar) == HIGH) {
-    Minutos++;}
-  if (digitalRead(boton_restar) == HIGH and not Minutos==0) {
-    Minutos--;} 
+    Minutos++;
+  }
+  if (digitalRead(boton_restar) == HIGH && Minutos > 0) {
+    Minutos--;
+  }
+}
+
+// Reinicia el cronómetro
+void reiniciarCronometro() {
   if (digitalRead(boton_reset) == HIGH) {
-    Minutos = 0; 
-    Segundos = 0; 
+    Minutos = 0;
+    Segundos = 0;
     bandera = 0;
-    confi=0;}
-}
-
-void Sub12_1(){
-  
-  if(Minutos==2 and Segundos==0 and confi==0 and digitalRead(boton_iniciar) == HIGH){
-    Minutos=10;
-    confi=12;}
-    
-  if (Minutos==0 && Segundos==0 && confi==12){
-    Minutos=Minutos+10;
-    bandera = 0;
+    confi = 0;
   }
 }
 
-void Sub12_2(){
-  
-  if(Minutos==3 and Segundos==0 and confi==0 and digitalRead(boton_iniciar) == HIGH){
-    Minutos=25;
-    confi=25;}
-    
-  if (Minutos==0 && Segundos==0 && confi==25){
-    Minutos=Minutos+25;
-    bandera = 0;
-  }
+// Pausa el cronómetro
+void pausarCronometro() {
+  bandera = 0;
+  displayMM.setColorFont(0xAA0000); // Rojo para indicar pausa
+  displaySS.setColorFont(0xAA0000);
 }
 
-void Primera_1(){
-  
-  if(Minutos==1 and Segundos==0 and confi==0 and digitalRead(boton_iniciar) == HIGH){
-    Minutos=15;
-    confi=15;}
-    
-  if (Minutos==0 && Segundos==0 && confi==15){
-    Minutos=Minutos+15;
-    bandera = 0;
-  }
+// Inicia el cronómetro
+void iniciarCronometro() {
+  bandera = 1;
+  displayMM.setColorFont(0x00FFFF); // Celeste para indicar en marcha
+  displaySS.setColorFont(0x00FFFF);
 }
 
+// Cuenta hacia atrás el tiempo
 void Contador() {
   Segundos--;
 
   if (Segundos < 0) {
     Minutos--;
-    Segundos += 60;
+    Segundos = 59;
+  }
+
+  if (Minutos < 0) {
+    Minutos = 0;
+    Segundos = 0;
+    bandera = 0;
+  }
+}
+
+// Configuración de tiempos especiales
+void gestionarTiempoEspecial() {
+  if (Minutos == 2 && Segundos == 0 && confi == 0 && digitalRead(boton_iniciar) == HIGH) {
+    Minutos = 10;
+    confi = 12;
+  }
+
+  if (Minutos == 3 && Segundos == 0 && confi == 0 && digitalRead(boton_iniciar) == HIGH) {
+    Minutos = 25;
+    confi = 25;
+  }
+
+  if (Minutos == 1 && Segundos == 0 && confi == 0 && digitalRead(boton_iniciar) == HIGH) {
+    Minutos = 15;
+    confi = 15;
+  }
+
+  if (Minutos == 0 && Segundos == 0) {
+    if (confi == 12) {
+      Minutos = 10;
+    } else if (confi == 25) {
+      Minutos = 25;
+    } else if (confi == 15) {
+      Minutos = 15;
+    }
+    bandera = 0;
   }
 }
