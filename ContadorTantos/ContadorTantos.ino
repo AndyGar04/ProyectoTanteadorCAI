@@ -1,164 +1,185 @@
-const byte ledPin = 6;                // Which pin on the Arduino is connected to the NeoPixels?
-const byte numDigits = 2; 
-const byte numDigitsB = 1;  // How many digits (numbers) are available on each display
-const byte pixelPerDigit = 63;         // all pixels, including decimal point pixels if available at each digit
-const byte addPixels = 63;              // unregular additional pixels to be added to the strip
+// Este programa controla un sistema de conteo de puntos utilizando displays NeoPixel.
+// Incluye tres displays: A, B y C para mostrar los puntos de los equipos locales, visitantes y el periodo del juego.
+// El código utiliza la librería Adafruit_NeoPixel y Noiasca_NeopixelDisplay.
 
-const byte startPixelA = 0;            // start pixel of display A
-const byte startPixelB = 126;
-const byte startPixelC = 252;          // start pixel of display B (assumption: 2 x 14 used by displayA + 4 additional Pixels)
+#include <Adafruit_NeoPixel.h>  // Librería para controlar NeoPixels
+#include <Noiasca_NeopixelDisplay.h> // Librería para manejar displays NeoPixel
 
-int Var=0;
-int varv=0;
+// Configuración de pines y parámetros
+const byte ledPin = 6;                // Pin conectado al NeoPixel
+const byte numDigits = 2;             // Cantidad de dígitos en los displays A y B
+const byte numDigitsB = 1;            // Cantidad de dígitos en el display C
+const byte pixelPerDigit = 63;        // Cantidad de píxeles por dígito
+const byte addPixels = 63;            // Píxeles adicionales
 
-int PuntosCai=0; //Puntos Cai
-int PuntosVis=0; //Puntos Vis
-int Per=0;       //Suma/Res periodo
+// Posiciones de inicio para los displays
+const byte startPixelA = 0;           // Inicio del display A
+const byte startPixelB = 126;         // Inicio del display B
+const byte startPixelC = 252;         // Inicio del display C
 
-int SumVis=7;
-int ResVis=8;
-int SumLoc=9;
-int ResLoc=10;
-int BPeriodo=11;
+// Variables para almacenar los puntos y periodo
+int PuntosCai = 0; // Puntos del equipo local
+int PuntosVis = 0; // Puntos del equipo visitante
+int Per = 0;       // Periodo actual
 
+// Pines para botones de entrada
+int SumVis = 7;    // Botón para sumar puntos al visitante
+int ResVis = 8;    // Botón para restar puntos al visitante
+int SumLoc = 9;    // Botón para sumar puntos al local
+int ResLoc = 10;   // Botón para restar puntos al local
+int BPeriodo = 11; // Botón para avanzar de periodo
+
+// Cantidad total de LEDs
 const uint64_t ledCount(pixelPerDigit * numDigits * 2 + addPixels);
-/*
-   Segments are named and orded like this
 
-          SEG_A
-   SEG_F         SEG_B
-          SEG_G
-   SEG_E         SEG_C
-          SEG_D          SEG_DP
-
-  in the following constant array you have to define
-  which pixels belong to which segment
-*/
-
-typedef uint64_t segsize_t;                               // fit variable size to your needed pixels. uint16_t --> max 16 Pixel per digit
-const segsize_t segment[7] {
-  0b000000000000000000000000000000000000000000000000000000111111111,  // SEG_A
-  0b000000000000000000000000000000000000000000000111111111000000000,  // SEG_B
-  0b000000000000000000000000000000000000111111111000000000000000000,  // SEG_C
-  0b000000000000000000000000000111111111000000000000000000000000000,  // SEG_D
-  0b000000000000000000111111111000000000000000000000000000000000000,  // SEG_E
-  0b000000000111111111000000000000000000000000000000000000000000000,  // SEG_F
-  0b111111111000000000000000000000000000000000000000000000000000000,  // SEG_G
+// Segmentos de los displays definidos como bits
+const uint64_t segment[7] {
+  0b000000000000000000000000000000000000000000000000000000111111111,  // Segmento A
+  0b000000000000000000000000000000000000000000000111111111000000000,  // Segmento B
+  0b000000000000000000000000000000000000111111111000000000000000000,  // Segmento C
+  0b000000000000000000000000000111111111000000000000000000000000000,  // Segmento D
+  0b000000000000000000111111111000000000000000000000000000000000000,  // Segmento E
+  0b000000000111111111000000000000000000000000000000000000000000000,  // Segmento F
+  0b111111111000000000000000000000000000000000000000000000000000000   // Segmento G
 };
 
-#include <Adafruit_NeoPixel.h>                                       // install Adafruit library from library manager
-Adafruit_NeoPixel strip(ledCount, ledPin, NEO_GRB + NEO_KHZ800);     // create neopixel object like you commonly used with Adafruit
-
-#include <Noiasca_NeopixelDisplay.h>                                      // download library from: http://werner.rothschopf.net/202005_arduino_neopixel_display.htm
-// in this sketch we handle displayA and displayB as two individual displays:
-Noiasca_NeopixelDisplay displayA(strip, segment, numDigits, pixelPerDigit, startPixelA);  // create display object, handover the name of your strip as first parameter!
-Noiasca_NeopixelDisplay displayB(strip, segment, numDigits, pixelPerDigit, startPixelB);  // create display object, handover the name of your strip as first parameter!
-Noiasca_NeopixelDisplay displayC(strip, segment, numDigits-1, pixelPerDigit, startPixelC);
+// Inicialización de objetos NeoPixel y displays
+Adafruit_NeoPixel strip(ledCount, ledPin, NEO_GRB + NEO_KHZ800);
+Noiasca_NeopixelDisplay displayA(strip, segment, numDigits, pixelPerDigit, startPixelA);
+Noiasca_NeopixelDisplay displayB(strip, segment, numDigits, pixelPerDigit, startPixelB);
+Noiasca_NeopixelDisplay displayC(strip, segment, numDigitsB, pixelPerDigit, startPixelC);
 
 void setup() {
   Serial.begin(9600);
-  strip.begin();                       // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();                        // Turn OFF all pixels ASAP
-  strip.setBrightness(125);             // Set BRIGHTNESS to about 1/5 (max = 255)
+  strip.begin();                       // Inicializa el objeto NeoPixel
+  strip.show();                        // Apaga todos los LEDs
+  strip.setBrightness(125);            // Establece el brillo
   strip.clear();
 
-  displayA.setColorFont(0xAA0000);     // each display gets its own color, e.g. corresponding to the button color
-  displayB.setColorFont(0x00AA00);  
-  displayC.setColorFont(0xAAAAAA);
-    
-  pinMode(SumVis,INPUT);
-  pinMode(SumLoc,INPUT);
-  pinMode(ResVis,INPUT);
-  pinMode(ResLoc,INPUT);
-  pinMode(BPeriodo,INPUT);
+  // Configura los colores de los displays
+  displayA.setColorFont(0xAA0000);     // Rojo para el equipo local
+  displayB.setColorFont(0x00AA00);     // Verde para el equipo visitante
+  displayC.setColorFont(0xAAAAAA);     // Blanco para el periodo
+
+  // Configuración de los pines de entrada
+  pinMode(SumVis, INPUT);
+  pinMode(SumLoc, INPUT);
+  pinMode(ResVis, INPUT);
+  pinMode(ResLoc, INPUT);
+  pinMode(BPeriodo, INPUT);
 }
 
 void loop() {
-  
- Limitaciones();
- ColorPer();
- Periodo();}
-
-
-void Limitaciones(){
-if (Per==5){
-  Per=0;}
-  
-if (PuntosCai>99){
-     PuntosCai=99;
-}else{ 
-      sumaLoc();}
-  
-if (PuntosCai<=0){
-   PuntosCai=0;
-   }else{
-     restaLoc();}
- 
-if (varv>9 and PuntosVis!=9 and (digitalRead(SumVis)==HIGH)){
-   varv=9;
-   PuntosVis=9;
-   }else {
-   funcionMostrarVis();} 
- 
-if (varv==0 and PuntosVis==0 and (digitalRead(ResVis)==HIGH)){
-    varv=0;
-    PuntosVis=0;
-    }else{
-      restavis();}
+  Limitaciones();  // Verifica y ajusta límites
+  ColorPer();      // Muestra el periodo en el display C
+  Periodo();       // Controla el cambio de periodo
 }
 
-void sumaLoc(){
-if(PuntosCai<10){
-  displayA.print(Var);}
+// Verifica los límites de los puntos y controla las funciones principales
+void Limitaciones() {
+  if (Per == 5) {
+    Per = 0;
+  }
+
+  if (PuntosCai > 99) {
+    PuntosCai = 99;
+  } else {
+    sumaLoc();
+  }
+
+  if (PuntosCai <= 0) {
+    PuntosCai = 0;
+  } else {
+    restaLoc();
+  }
+
+  if (varv > 9 && PuntosVis != 9 && digitalRead(SumVis) == HIGH) {
+    varv = 9;
+    PuntosVis = 9;
+  } else {
+    funcionMostrarVis();
+  }
+
+  if (varv == 0 && PuntosVis == 0 && digitalRead(ResVis) == HIGH) {
+    varv = 0;
+    PuntosVis = 0;
+  } else {
+    restavis();
+  }
+}
+
+// Incrementa los puntos del equipo local
+void sumaLoc() {
+  if (PuntosCai < 10) {
+    displayA.print(Var);
+  }
   displayA.print(PuntosCai);
-if (digitalRead(SumLoc)==HIGH){
-  PuntosCai=PuntosCai+1;
-  displayA.clear();
-  delay(250);}
-}
- 
- void restaLoc(){
-  if (digitalRead(ResLoc)==HIGH){
-  displayA.clear();
-  PuntosCai=PuntosCai-1;
-  delay(250);}
-}
 
-void funcionMostrarVis(){
-   displayB.print(varv);
-   displayB.print(PuntosVis);
-   
- if (digitalRead(SumVis)==HIGH){
+  if (digitalRead(SumLoc) == HIGH) {
+    PuntosCai++;
+    displayA.clear();
     delay(250);
-    PuntosVis=PuntosVis+1;
-    displayB.clear();}
-    
- if (PuntosVis>=10){
-    varv=varv+1;
-    PuntosVis=0;}
+  }
 }
 
-void restavis(){
-   if (digitalRead(ResVis)==HIGH){
-     PuntosVis=PuntosVis-1;
-     delay(250);     
-     displayB.clear();}
-    if (PuntosVis<0){
-      PuntosVis=9;
-      varv=varv-1;}}
+// Decrementa los puntos del equipo local
+void restaLoc() {
+  if (digitalRead(ResLoc) == HIGH) {
+    displayA.clear();
+    PuntosCai--;
+    delay(250);
+  }
+}
 
-void Reset(){
-  if (digitalRead(ResVis)==HIGH){
-     PuntosCai=PuntosCai-PuntosCai;
-     varv=varv-varv;
-     PuntosVis=PuntosVis-PuntosVis;}}
+// Controla el incremento y visualización de puntos del visitante
+void funcionMostrarVis() {
+  displayB.print(varv);
+  displayB.print(PuntosVis);
 
-void Periodo(){
-  if (digitalRead(BPeriodo)==HIGH){
-    Per=Per+1;
-    delay(500);}}
+  if (digitalRead(SumVis) == HIGH) {
+    delay(250);
+    PuntosVis++;
+    displayB.clear();
+  }
 
+  if (PuntosVis >= 10) {
+    varv++;
+    PuntosVis = 0;
+  }
+}
 
-void ColorPer(){
+// Decrementa los puntos del equipo visitante
+void restavis() {
+  if (digitalRead(ResVis) == HIGH) {
+    PuntosVis--;
+    delay(250);
+    displayB.clear();
+  }
+
+  if (PuntosVis < 0) {
+    PuntosVis = 9;
+    varv--;
+  }
+}
+
+// Reinicia los puntos y variables a cero
+void Reset() {
+  if (digitalRead(ResVis) == HIGH) {
+    PuntosCai = 0;
+    varv = 0;
+    PuntosVis = 0;
+  }
+}
+
+// Controla el cambio de periodo
+void Periodo() {
+  if (digitalRead(BPeriodo) == HIGH) {
+    Per++;
+    delay(500);
+  }
+}
+
+// Muestra el periodo en el display C
+void ColorPer() {
   displayC.print(Per);
 }
